@@ -1,0 +1,163 @@
+---
+title: "Supplementary figures and tables"
+author: "Frederik Bak"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ampvis2)
+library(ggplot2)
+library(tidyverse)
+library(vegan)
+library(phyloseq)
+library(ggpubr)
+```
+
+
+```{r data_import, echo = FALSE}
+Full_data<-readRDS("Input_files/Future_crop_ampvis_2025.rds")
+
+Full_data$metadata$Time<-factor(Full_data$metadata$Time, 
+                                     levels = c("T0","T1","3DBS", "11DAS",
+                                                "14DAS","17DAS","31DAS",
+                                                "158DAS","187DAS","215DAS",
+                                                "227DAS","256DAS","318DAS"))
+```
+
+## Supplementary figures
+```{r field_overview,fig.dim = c(6,4), echo = FALSE,  fig.cap = "Fig. S1. Field overview of the sampled plots." }
+knitr::include_graphics("Plots/Field_overview.png")
+
+```
+
+
+
+
+```{r data_sets, echo=FALSE, include = FALSE}
+N1P2K2_rhizo<- Full_data %>% amp_subset_samples(Zone %in% "Root") %>% amp_subset_samples(Fertilizer %in% "N1P2K2")
+M1P1_rhizo<-Full_data %>% amp_subset_samples(Zone %in% "Root") %>% amp_subset_samples(Fertilizer %in% "M1P1")
+N1K1_rhizo<-Full_data %>% amp_subset_samples(Zone %in% "Root") %>% amp_subset_samples(Fertilizer %in% "N1K1")
+Soil_only<-Full_data %>% amp_subset_samples(Zone %in% "BulkSoil") 
+```
+
+```{r rarefaction_curves_1, fig.dim = c(8,6), echo = FALSE, fig.cap = "Fig. S2. Rarefaction curves of the M1P1 (a), N1K1 (b) and N1P2K2 (c) rhizosphere samples."}
+M1P1_rare<-M1P1_rhizo %>% amp_rarefaction_curve(facet_by = "Time",color_by = "Inoculum.")+ylab("Number of observed ASVs")
+N1K1_rare<-N1K1_rhizo %>% amp_rarefaction_curve(facet_by = "Time",color_by = "Inoculum.")+ylab("Number of observed ASVs")
+N1P2K2_rare<-N1P2K2_rhizo %>% amp_rarefaction_curve(facet_by = "Time",color_by = "Inoculum.")+ylab("Number of observed ASVs")
+ggarrange(M1P1_rare,N1K1_rare,N1P2K2_rare, labels = c("A","B","B"))
+```
+
+```{r rarefaction_curves,fig.dim = c(8,6), echo = FALSE, fig.cap = "Fig. S3. Rarefaction curves of soil communities."}
+Soil_only %>% amp_rarefaction_curve(facet_by = "Time",color_by = "Fertilizer")+ylab("Number of observed ASVs")
+```
+
+```{r alpha_div, cache =TRUE, echo = FALSE, warning = FALSE,fig.dim = c(9,6), fig.cap = "Fig. S4. Shannon diversity across [FB21.1]the growth season for bulk soil (To, T1, 3 DBS) and rhizosphere communities. Each point represents a sample." }
+phyl_ob<-readRDS("Input_files/Filtered_phyloseq25.rds")
+
+sample_data(phyl_ob)$Time<-factor(sample_data(phyl_ob)$Time, 
+                                     levels = c("T0","T1","3DBS", "11DAS",
+                                                "14DAS","17DAS","31DAS",
+                                                "158DAS","187DAS","215DAS",
+                                                "227DAS","256DAS","318DAS"))
+
+
+#First rarefy 100 times and take the average
+## Create a matrix with all the samples as rows and 100 empty columns
+shan_ra<-matrix(NA,nsamples(phyl_ob),100)
+
+# Then rarefy once and then calculate  Shannon diversity, repeat 100 times. Do not set rngseed as the values will the be the same
+#Do not set seed, otherwise it will be the same every time
+for(i in 1:100){
+  {Full16_rare<-rarefy_even_depth(phyl_ob, sample.size = min(sample_sums(phyl_ob)))
+  Shannon<-plot_richness(Full16_rare ,x = "Sample_ID", measures = "Shannon")
+    shan_ra[,i]<-Shannon$data$value}
+}
+#Calculate mean of the 100 rarefied Shannon indices
+shan_ra_me<-apply(shan_ra,MARGIN =  1, mean)
+
+shan_mean_met<-cbind(sample_data(phyl_ob),Shannon =shan_ra_me)
+unique(shan_mean_met$Time)
+#  Plot the data
+#shan_mean_met$Plot_var<-paste(shan_mean_met$Variety,shan_mean_met$Treatment, sep = "_")
+
+Shann_plot_all_points<-shan_mean_met %>% 
+  #filter(!Treatment %in% "Mock" & !Compartment %in% "Mock") %>% 
+  ggplot(aes(x = Time, y = Shannon, color = Fertilizer))+
+  geom_point(position =position_dodge(width = 0.4))+theme_bw()+
+  labs(color = "Sample")+theme(legend.position = "bottom")
+
+Shann_plot_all_points
+
+```
+
+
+
+```{r PCoA_soil_rhizo, cache = TRUE,echo = FALSE, fig.dim = c(6,6), fig.cap = "Fig. S5. PCoA of soil and rhizosphere bacterial communities using Bray Curtis dissimilarities on non-rarefied data."}
+
+physeq_ord_<-ordinate(phyl_ob, method = "PCoA",distance = "bray")
+p3<-plot_ordination(phyl_ob,physeq_ord_, shape = "Fertilizer", color = "Zone")
+
+p3 + guides(shape = guide_legend(title ="Fertility Level"))+
+  theme(axis.text = element_text(size = 12), axis.title = element_text(size = 16), 
+        legend.title = element_text(size = 16),legend.text = element_text(size = 12),
+        legend.position = "right", panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background =  element_blank(),
+        panel.border = element_rect(colour = "black", fill=NA, linewidth=1),
+        strip.background = element_rect(fill="white", color = "white"))
+
+
+```
+
+
+
+
+```{r Heatmap_phyla, fig.dim = c(10,5), echo = FALSE, fig.cap = "Fig. S6.  The 10 most abundant phyla in the rhizosphere microbiome across the entire growth season. The values are mean relative abundances (n = 16)."}
+Full_data %>% amp_subset_samples(Zone %in% "Root") %>%
+  amp_heatmap(facet_by = "Time", group_by = "Fertilizer", tax_aggregate = "Phylum", tax_show = 10)
+
+```
+
+
+
+```{r Heatmap_1, fig.dim = c(10,5), echo = FALSE, fig.cap = "Fig. S7.  Relative abundances of the 15 most abundant genera across the 10 sampling times at the N1P2K2 fertility level (n = 16)."}
+N1P2K2_rhizo %>% amp_heatmap(facet_by = "Time", group_by = "Time",tax_aggregate = "Genus", tax_show = 15)
+```
+
+
+```{r Heatmap_2,fig.dim = c(9,7), echo = FALSE, fig.cap = "Fig. S8. Relative abundances of the 15 most abundant genera across the 10 sampling times at the M1P1 fertility level (n = 16)."}
+M1P1_rhizo %>% amp_heatmap(facet_by = "Time", group_by = "Time",tax_aggregate = "Genus", tax_show = 15)
+```
+
+
+
+```{r Heatmap_3, fig.dim = c(10,10),echo = FALSE, fig.cap = "Fig. S9. Relative abundances of the 15 most abundant genera across the 10 sampling times at the N1K1 fertility level (n = 16)."}
+N1K1_rhizo %>% amp_heatmap(facet_by = "Time", group_by = "Time",tax_aggregate = "Genus", tax_show = 15)
+```
+
+*Insert PCoA of rarefied data AND PCoA/tSNE of non-rarefied data to complement fig 4.*
+
+```{r permanova, echo = FALSE, cache = TRUE}
+phyl_ob<-readRDS("Input_files/Filtered_phyloseq25.rds")
+
+rhizo_phyl<-subset_samples(phyl_ob, Zone %in% "Root" )
+ASV_table<-data.frame((otu_table(rhizo_phyl))) # samples as rows
+
+rhizo_dist_av<-avgdist(ASV_table, meanfun = "mean", dmethod = "bray", sample = min(sample_sums(rhizo_phyl)))
+
+
+sample_data(rhizo_phyl)$Block<-sapply(strsplit(sample_data(rhizo_phyl)$Sample,"\\."),'[',2)
+h1 <- with(data.frame(sample_data(rhizo_phyl)), how(nperm = 999, blocks = Block)) # Accounting for block effect
+set.seed(5)
+model<-adonis2(rhizo_dist_av~Time*Fertilizer*Inoculum., data = data.frame(sample_data(rhizo_phyl)), by = "terms", permutations = h1)
+
+knitr::kable(model)
+
+```
+
+
+```{r }
+sessionInfo()
+```
+

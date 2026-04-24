@@ -6,7 +6,7 @@ library(ggplot2)
 library(tidyverse)
 library(ampvis2)
 
-setwd("..");genus_all_4_list<-readRDS("Outputs/biomarker_list.rds")
+setwd("..");genus_all_4_list<-readRDS("Outputs/biomarker_list.rds");setwd("Figures")
 
 #Import the phyloseq object
 phyl_ob<-readRDS("Input_files/Phyloseq_genus.rds")
@@ -44,48 +44,25 @@ amp2_all4$metadata$Fert[amp2_all4$metadata$Fertilizer %in% "M1P1"]<-"M"
 amp2_all4$metadata$Fert[amp2_all4$metadata$Fertilizer %in% "N1K1"]<-"NK"
 amp2_all4$metadata$Fert[amp2_all4$metadata$Fertilizer %in% "N1P2K2"]<-"NPK"
 
+amp2_all4$metadata$Period[amp2_all4$metadata$Time %in% c("11","14","17","31")]<-"Early"
+amp2_all4$metadata$Period[amp2_all4$metadata$Time %in% c("158","187","215","227")]<-"Middle"
+amp2_all4$metadata$Period[amp2_all4$metadata$Time %in% c("256","318")]<-"Late"
+amp2_all4$metadata$Period[amp2_all4$metadata$Time %in% c("3DBS")]<-"Bulk Soil"
+
 # Plot
 heatmap_v1<-amp2_all4 %>% amp_subset_samples(!Time %in% c("T0","T1")) %>%
-  amp_heatmap(facet_by = "Time", group_by = "Fert", tax_show = 45, 
+  amp_heatmap(facet_by = c("Time"), group_by = "Fert", tax_show = 45, 
               tax_aggregate = "Genus",
               normalise = FALSE,
               plot_values = FALSE,
               order_y_by = rev(genus_ranked_mean$Genus),
               color_vector = c("White","Blue"))+ 
   theme(strip.background = element_rect(fill="white", color = "white"))+
-  theme(axis.text.x = element_text(size = 9, angle = 90), axis.title = element_text(size = 22), axis.text.y = element_text(size = 10))
-
-
-x11(width = 8, height = 7)
+  theme(axis.text.x = element_text(size = 9, angle = 90), axis.title = element_text(size = 22), axis.text.y = element_text(size = 10))+
+  labs(colour = "Rel. abundance (%)")
+  
+x11(width = 9, height =7)
 heatmap_v1
-
-p$Period[p$Time %in% c("11","14","17","31")]<-"Early"
-p$Period[p$Time %in% c("158","187","215","227")]<-"Middle"
-p$Period[p$Time %in% c("256","318")]<-"Late"
-p$Period[p$Time %in% c("3DBS")]<-"Bulk Soil"
-library(ggh4x)
-
-p$Period<-factor(p$Period, levels = c("Bulk Soil", "Early","Middle","Late"))
-
-
-heat_all_gen2<-ggplot(p, aes(x = Fertilizer, y = Display, fill = Abundance))+geom_tile()+
-  facet_nested(~Period+Time, scales ="free_x" ) +
-  theme(axis.text.x = element_text(angle = 90,vjust = 0.2))+
-  scale_fill_gradient(low = "white", high = "Blue", name = "Rel. Abundance") +
-  theme(ggh4x.facet.nestline = element_line(linetype = 1))+
-  theme(axis.text.x = element_text(size = 10), axis.title = element_text(size = 14),
-        panel.grid = element_blank(), strip.background =element_rect(fill = "white"))+
-  ylab("")+xlab("Fertility Level")
-
-setwd("Figures")
-x11(width = 13, height = 7)
-heat_all_gen2
-ggsave("Plots/heatmap_SHAPtop15_all3.png",dpi = 300)
-dev.off()
-
-
-
-ggsave("Plots/Heatmap_figures.png",heatmap_v1, units = "in" ,width = 9, height = 7, dpi = 300)
-tiff("Plots/Heatmap_figures.tiff", units = "in", width = 8, height = 7, res = 300, compression = "lzw")
-heatmap_v1
+ggsave("Plots/Figure4.png", dpi = 300)
+ggsave("Plots/Figure4.svg")
 dev.off()
