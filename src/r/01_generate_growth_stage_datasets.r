@@ -9,10 +9,10 @@
 # Copyright (c) 2026, Thomas Martini Jørgensen / DTU Compute, Technical University of Denmark
 #
 # This script is part of the code accompanying the paper:
-# "Identification of robust bacterial biomarkers in the wheat root microbiome for predicting soil legacy and crop development "
+# "Identification of robust bacterial biomarkers in the wheat root microbiome for predicting soil legacy effects and crop development "
 # by Frederik Bak, Thomas Martini Jørgensen, Inês Nunes, Veronika Hansen, and  Mette Haubjerg Nicolaisen
 #
-# GitHub Repository: https://https://github.com/BakDK/Future_cropping
+# GitHub Repository: https://github.com/BakDK/Soil_legacy_2026 
 #
 # This code is licensed under the MIT License. See the LICENSE file in the
 # root directory of this repository for the full license text.
