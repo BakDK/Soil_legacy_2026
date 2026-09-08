@@ -123,17 +123,27 @@ uniqueN1K1<-full$item[[2]]
 
 List_of_all<-c(Shared_by_all,shared_inorg,Shared_M1N1,uniqueMan,uniqueP2,uniqueN1K1)
 
-#Create a column in the ampvis object with Family and Genus
-total_core_amp$tax$Genus[total_core_amp$tax$Genus == ""]<-NA
-total_core_amp$tax$Comb<-paste0(total_core_amp$tax$Family,"_",total_core_amp$tax$Genus)
+List_of_all2<-ifelse(grepl("_NA", List_of_all), List_of_all, sub("^[^_]+_", "",List_of_all))
 
-total_core_amp$tax$Comb<-factor(total_core_amp$tax$Comb, levels = List_of_all)
+List_of_all2[grep("_NA",List_of_all2)]<-paste("Unclass.",List_of_all2[grep("_NA",List_of_all2)], sep = " ")
+List_of_all2<-sub("_NA", "",List_of_all2)
+
+#Modify missing genus names for alignment of the vector and matrix
+
+total_core_amp$tax$Genus[total_core_amp$tax$Genus == ""]<-paste("Genus_NA_Rep_",total_core_amp$tax$OTU[total_core_amp$tax$Genus %in% ""],sep ="")
+
+total_core_amp$tax$Genus[grep("Genus_",total_core_amp$tax$Genus)]<-paste("Unclass.",total_core_amp$tax$Family[grep("Genus_",total_core_amp$tax$Genus)], sep = " ")
+
+total_core_amp$tax$Genus<-factor(total_core_amp$tax$Genus, levels = List_of_all2)
 
 total_core_amp2<-total_core_amp
-total_core_amp2$tax<-total_core_amp$tax[order(total_core_amp$tax$Comb),]
-total_core_amp2$tax$Genus<-total_core_amp$tax$Comb
+total_core_amp2$tax<-total_core_amp$tax[order(total_core_amp$tax$Genus),]
+#total_core_amp2$tax$Genus<-total_core_amp$tax$Comb
 
-first_ver_box<-amp_boxplot(total_core_amp2, normalise = FALSE, tax_show =31, order_y = rev(total_core_amp2$tax$Comb),
+amp_boxplot(total_core_amp2, normalise = FALSE, tax_show =31,tax_aggregate = "Genus")
+amp_heatmap(total_core_amp2, normalise = FALSE, tax_show =31,tax_aggregate = "Genus")
+
+first_ver_box<-amp_boxplot(total_core_amp2, normalise = FALSE, tax_show =31, order_y = rev(total_core_amp2$tax$Genus),
             tax_aggregate = "Genus")+
   ylab("Rel. abundance (%)")+geom_vline(xintercept=c(18.5,8.5,7.5,5.5,2.5))
   annotate("text",label = c("Shared", "N1K1,N1P2K2","M1P1,N1K1","Unique M1P1","Unique N1P2K2","Unique N1K1"),

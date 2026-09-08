@@ -22,13 +22,36 @@ N12<-read.csv(file_path_N12)
 file_path_R12<-file.path(input_dir,"legacy_rarefied_block_train12_test34/03_biomarker_rankings/final_biomarker_ranking_main.csv")
 R12<-read.csv(file_path_R12)
 
+file_path_N14<-file.path(input_dir,"legacy_non_rarefied_block_train14_test23/03_biomarker_rankings/final_biomarker_ranking_main.csv")
+N14<-read.csv(file_path_N14)
+file_path_R14<-file.path(input_dir,"legacy_rarefied_block_train14_test23/03_biomarker_rankings/final_biomarker_ranking_main.csv")
+R14<-read.csv(file_path_R14)
+
+
 # add a variable
 N12$Rare<-"No"
 R12$Rare<-"Yes"
 N13$Rare<-"No"
 R13$Rare<-"Yes"
+N14$Rare<-"No"
+R14$Rare<-"Yes"
 
-N12_mer<-rbind(N12,R12)
+# select top 15 for each class based on AVG_potency_SHAP
+top15<-function(x) {
+  x %>%
+  group_by(Class) %>%
+    slice_max( order_by = robust_potency, n = 15, with_ties = FALSE) %>%
+    ungroup()
+}
+N12_top<-top15(N12)
+R12_top<-top15(R12)
+N13_top<-top15(N13)
+R13_top<-top15(R13)
+N14_top<-top15(N14)
+R14_top<-top15(R14)
+
+#check the 1,2 training split
+N12_mer<-rbind(N12_top,R12_top)
 ggplot(N12_mer, aes(x= robust_potency, y = Feature, color = Rare, fill = Rare))+
   geom_bar(stat="identity",position="dodge")+facet_grid(.~Class,scales = "free_y")
 N12_mer_genus_both<-N12_mer %>%
@@ -42,7 +65,7 @@ ggplot(N12_mer_genus_both, aes(x= robust_potency, y = Feature, color = Rare, fil
 
 # repeat for the 1,3 train set
 
-N13_mer<-rbind(N13,R13)
+N13_mer<-rbind(N13_top,R13_top)
 ggplot(N13_mer, aes(x= robust_potency, y = Feature, color = Rare, fill = Rare))+
   geom_bar(stat="identity",position="dodge")+facet_grid(.~Class,scales = "free_y")
 N13_mer_genus_both<-N13_mer %>%
@@ -54,19 +77,30 @@ N13_mer_genus_both<-N13_mer %>%
 ggplot(N13_mer_genus_both, aes(x= robust_potency, y = Feature, color = Rare, fill = Rare))+
   geom_bar(stat="identity",position="dodge")+facet_grid(.~Class,scales = "free_y")
 
+# 1,4
+N14_mer<-rbind(N14_top,R14_top)
+N14_mer_genus_both<-N14_mer %>%
+  group_by(Feature,Class) %>%
+  add_count() %>%
+  filter(n==2) %>% ungroup()
+
+ggplot(N14_mer_genus_both, aes(x= robust_potency, y = Feature, color = Rare, fill = Rare))+
+  geom_bar(stat="identity",position="dodge")+facet_grid(.~Class,scales = "free_y")
+
 ## Merge the two data sets
 N13_mer_genus_both$train<-"t13"
 N12_mer_genus_both$train<-"t12"
+N14_mer_genus_both$train<-"t14"
 
-Genus_both_mer<-rbind(N13_mer_genus_both,N12_mer_genus_both)
+Genus_all_mer<-rbind(N13_mer_genus_both,N12_mer_genus_both,N14_mer_genus_both)
 
-# identify the taxa that are found in the rare data for both training sets. 
+# identify the taxa that are found in the  data for all training sets. 
 #Since filtering of taxa that do not appear in non-rarefied AND rarefied have been removed, filtering is only done on the "rare" variable. 
-genus_all_rare<-Genus_both_mer %>%
+genus_all_rare<-Genus_all_mer %>%
   subset(Rare %in% "Yes") %>%
   group_by(Feature,Class) %>%
   add_count(name = "All") %>%
-  filter(All >=2 ) %>% ungroup()
+  filter(All >=3 ) %>% ungroup()
 
 genus_all_rare$Class<-factor(genus_all_rare$Class, levels = c("M1P1","N1K1","N1P2K2"))
 
@@ -78,61 +112,58 @@ Shared_ind_gen_rare<-genus_all_rare %>%
   ggplot( aes(x= robust_potency, y = Feature, color = train, fill = train))+
   geom_bar(stat="identity",position="dodge")+facet_grid(.~Class,labeller=labeller(Class =class.labs))
 
-# Find those taxa that appear in all 4 data sets.
-genus_all_4<-Genus_both_mer %>%
+# Find those taxa that appear in all 6 data sets.
+genus_all_6<-Genus_all_mer %>%
   select(Feature, Class, robust_potency, Rare, train) %>%
   group_by(Feature,Class) %>%
   add_count(name = "All") %>%
-  filter(All >=4 ) %>% ungroup()
+  filter(All >=6 ) %>% ungroup()
 
-genus_all_4$Class<-factor(genus_all_4$Class, levels = c("M1P1","N1K1","N1P2K2"))
+genus_all_6$Class<-factor(genus_all_6$Class, levels = c("M1P1","N1K1","N1P2K2"))
 
 
 #Calculate mean robust potency
-genus_all_4_mean<-genus_all_4 %>% 
+genus_all_6_mean<-genus_all_6 %>% 
   group_by(Feature,Class) %>% 
   summarise(Mean = mean(robust_potency),
             max = max(robust_potency),
             min = min(robust_potency)) %>% ungroup()
 
-genus_all_4_mean # 
+genus_all_6_mean # 
 # order based on their values first in M1P1, then N1K1  and finally N1P2K2.
-genus_ranked_mean<-genus_all_4_mean %>%
+genus_ranked_mean<-genus_all_6_mean %>%
   select(-max,-min)%>%
   pivot_wider(names_from = "Class", values_from ="Mean") %>%
-  arrange(desc(M1P1),desc(N1K1),desc(N1P2K2))
+  arrange(desc(M1P1),desc(N1P2K2))
 
 genus_ranked_mean$Feature<-factor(genus_ranked_mean$Feature, levels = genus_ranked_mean$Feature)
 
 genus_ranked_long<-genus_ranked_mean %>% pivot_longer(!Feature,names_to = "Class", values_to = "Mean")
 genus_ranked_long$Class<-factor(genus_ranked_long$Class, levels = c("M1P1","N1K1","N1P2K2"))
 
-# Plot draft
-robust_potency_plot_v1<-genus_ranked_long %>% 
-  ggplot( aes(x= Mean, y = Feature, fill = Class))+
-  geom_bar(stat="identity",position="dodge")+scale_y_discrete(limits = rev)+
-  facet_grid(.~Class,labeller=labeller(Class =class.labs))
-
-
 # Modify slightly 
+genus_ranked_long2<-genus_ranked_long%>% filter(Mean > 0.0025)
 
-genus_ranked_long_red<-genus_ranked_long %>% filter(Mean > 0.0025)
 
-robust_potency_plot_v2<-genus_ranked_long_red %>% 
+# Plot draft
+robust_potency_plot_v1<-genus_ranked_long2 %>% 
   ggplot( aes(x= Mean, y = Feature, fill = Class))+
   geom_bar(stat="identity",position="dodge")+scale_y_discrete(limits = rev)+
   facet_grid(.~Class,labeller=labeller(Class =class.labs))
+
+
+
 
 # improve aesthetics
-plot_1st_ed<-robust_potency_plot_v2 + theme(axis.text = element_text(size = 10), axis.title = element_text(size = 22), 
+plot_1st_ed<-robust_potency_plot_v1 + theme(axis.text = element_text(size = 10), axis.title = element_text(size = 22), 
                                             legend.title = element_text(size = 20),legend.text = element_text(size = 15),
                                             strip.text = element_text(size = 20),
                                             legend.position = "none", panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
                                             panel.background =  element_blank(),
                                             panel.border = element_rect(colour = "black", fill=NA, linewidth=1),
                                             strip.background = element_rect(fill="white", color = "white"))+
-  scale_fill_manual(values=c("#E69F00","Grey",  "#56B4E9") )+
-  scale_color_manual(values=c("#E69F00","Grey",  "#56B4E9"))+
+  scale_fill_manual(values=c("#E69F00",  "#56B4E9") )+
+  scale_color_manual(values=c("#E69F00",  "#56B4E9"))+
    ylab("")+xlab("Robust Potency")+
   theme(panel.spacing = unit(2, "lines"))+
   theme(plot.margin = unit(c(0, 0.25, 0.25, 0.25),
@@ -143,12 +174,12 @@ plot_1st_ed
 
 x11(width = 10, height = 8)
 plot_1st_ed
-ggsave("Figures/Plots/Suppl_fig_S12.png", dpi = 300)
+ggsave("Plots/Suppl_fig_S12_top15.png", dpi = 300)
 dev.off()
 
 
 # make a subset of the ampvis2 object
-genus_all_4_list<-unique(genus_ranked_long_red$Feature) # using only those above 0.0025
+genus_all_6_list<-unique(genus_ranked_long2$Feature) # using only those above 0.0025
 genus_ranked_mean$Feature<-sub("\\."," ",genus_ranked_mean$Feature)
 
 #Import the phyloseq object
@@ -168,11 +199,10 @@ amp_obj2$metadata$Time<-factor(amp_obj2$metadata$Time,
 #Modify missing genus names for alignment of the vector and matrix
 amp_obj2$tax$Genus[amp_obj2$tax$Genus %in% ""]<- paste("Genus_NA_Rep_",amp_obj2$tax$OTU[amp_obj2$tax$Genus %in% ""],sep ="")
 # Check if the names are identical
-setdiff(genus_all_4_list,amp_obj2$tax$Genus) 
-genus_all_4_list<-gsub("Clostridium.sensu.stricto.1","Clostridium sensu stricto 1", genus_all_4_list)
-genus_all_4_list<-gsub("Cylindrospermum.PCC.7417","Cylindrospermum PCC-7417", genus_all_4_list)
-genus_all_4_list<-gsub("SH.PL14","SH-PL14", genus_all_4_list)
-genus_all_list_2<-gsub("CL500.29.marine.group" ,"CL500-29 marine group", genus_all_4_list)
+setdiff(genus_all_6_list,amp_obj2$tax$Genus) 
+genus_all_6_list<-gsub("Clostridium.sensu.stricto.1","Clostridium sensu stricto 1", genus_all_6_list)
+
+genus_all_list_2<- genus_all_6_list
 
 amp_obj2$tax$Genus[grep("CL500",amp_obj2$tax$Genus)]
 
@@ -181,15 +211,15 @@ setdiff(genus_all_list_2,amp_obj2$tax$Genus)
 
 #subset the data only using the genera identified with treeSHAP
 
-amp2_all4<-amp_obj2 %>% amp_subset_taxa(tax_vector = genus_all_list_2 , normalise = TRUE) # 36 genera
+amp2_all6<-amp_obj2 %>% amp_subset_taxa(tax_vector = genus_all_list_2 , normalise = TRUE) # 31 genera
 
-amp2_all4$tax$Genus<-factor(amp2_all4$tax$Genus, levels = genus_all_list_2)
-setdiff(genus_all_list_2,amp2_all4$tax$Genus) # 0 differences
+amp2_all6$tax$Genus<-factor(amp2_all6$tax$Genus, levels = genus_all_list_2)
+setdiff(genus_all_list_2,amp2_all6$tax$Genus) # 0 differences
 
 
 str(genus_all_list_2)
 # Plot
-heatmap_v1<-amp2_all4 %>% amp_subset_samples(!Time %in% c("T0","T1")) %>%
+heatmap_v1<-amp2_all6 %>% amp_subset_samples(!Time %in% c("T0","T1")) %>%
   amp_heatmap(facet_by = "Fertilizer", group_by = "Time", tax_show = 45, 
               tax_aggregate = "Genus",
               normalise = FALSE,
@@ -200,10 +230,35 @@ heatmap_v1<-amp2_all4 %>% amp_subset_samples(!Time %in% c("T0","T1")) %>%
   theme(strip.background = element_rect(fill="white", color = "white"))+
   theme(axis.text.x = element_text(size = 9, angle = 90), axis.title = element_text(size = 22), axis.text.y = element_text(size = 10))+
   labs(fill = "Rel. abundance (%) ")
+heatmap_v1+geom_segment(aes(x = 1, xend = 10,     y = 5, yend = 5), inherit.aes = FALSE)
 
+library(grid)
+library(gtable)
 
-ggsave("Figures/Plots/Figure6.svg",heatmap_v1, units = "in" ,width = 9, height = 7)
-ggsave("Figures/Plots/Figure6.png",heatmap_v1, units = "in" ,width = 9, height = 7, dpi = 300)
+g<-ggplotGrob(heatmap_v1)
+
+png("Figures/Plots/Figure6_v2.png",
+    width = 2700,
+    height = 2100,
+    res = 300)
+grid.newpage()
+grid.draw(g)
+grid.lines(x = unit(c(0,1),"npc"), y = unit(c(0.408,0.408),"npc"), gp = gpar(col = "black", lwd= 2))
+grid.text(label = "M1P1",
+          x = unit(0.03,"npc"),
+          y = unit(0.95,"npc"),
+          just = "left",
+          gp = gpar(fontsize = 12, fontface = "bold"))
+grid.text(label = "N1P2K2",
+          x = unit(0.03,"npc"),
+          y = unit(0.35,"npc"),
+          just = "left",
+          gp = gpar(fontsize = 12, fontface = "bold"))
+dev.off()
+
+#setwd("..")
+#ggsave("Figures/Plots/Figure6.svg",heatmap_v1, units = "in" ,width = 9, height = 7)
+#ggsave("Figures/Plots/Figure6.png",heatmap_v1, units = "in" ,width = 9, height = 7, dpi = 300)
 
 
 
